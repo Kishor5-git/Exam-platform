@@ -1,0 +1,110 @@
+import { Router, Request, Response } from "express";
+import { db } from "../config/db";
+import { hashPassword, comparePassword, generateToken } from "../utils/auth";
+import { authenticate, AuthRequest } from "../middleware/auth";
+import crypto from "crypto";
+
+const router = Router();
+
+// Get Current User Manifest
+router.get("/me", authenticate, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    const result = await db.execute({
+      sql: "SELECT id, name, email, role, profile_photo, created_at FROM users WHERE id = ?",
+      args: [userId]
+    } as any);
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ error: "Identity not discovered." });
+    }
+
+    res.json({
+      user: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Identity recovery failure:", error);
+    res.status(500).json({ error: "Internal server error during identity retrieval." });
+  }
+});
+
+// Register
+router.post("/register", async (req: Request, res: Response) => {
+  try {
+    const { name, email, password, role } = req.body;
+    console.log("Registration attempt:", { name, email, role });
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Name, email and password are required" });
+    }
+
+    // Check if user exists
+    console.log("Checking if user exists...");
+    const existing = await db.execute({
+      sql: "SELECT * FROM users WHERE email = ?",
+      args: [email]
+    } as any);
+
+    if (existing.rows && existing.rows.length > 0) {
+      console.log("User already exists:", email);
+      return res.status(400).json({ error: "User already exists" });
+    }
+
+    console.log("Hashing password...");
+    const hashedPassword = await hashPassword(password);
+    const id = crypto.randomUUID();
+
+    console.log("Inserting user into database...");
+    await db.execute({
+      sql: "INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)",
+      args: [id, name, email, hashedPassword, role || "student"]
+    } as any);
+
+    console.log("User registered successfully:", email);
+    res.status(201).json({ message: "User registered successfully" });
+  } catch (error: any) {
+    console.error("Register error DETAILS:", error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+// Login
+router.post("/login", async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    const result = await db.execute({
+      sql: "SELECT * FROM users WHERE email = ?",
+      args: [email]
+    } as any);
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(400).json({ error: "Invalid credentials" });
+    }
+
+    const user = result.rows[0];
+    const isMatch = await comparePassword(password, user.password as string);
+
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid credentials" });
+    }
+
+    const token = generateToken({ id: user.id as string, email: user.email as string, role: user.role as string });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profile_photo: user.profile_photo
+      }
+    });
+  } catch (error: any) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+export default router;

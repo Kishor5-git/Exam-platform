@@ -17,15 +17,23 @@ import {
   Send
 } from "lucide-react";
 import Link from "next/link";
-import api from "@/services/api";
+interface Exam {
+  id: string;
+  title: string;
+  status: 'published' | 'draft';
+  schedule_start: string;
+  schedule_end: string;
+  duration: number;
+  submissions_count?: number;
+}
 
 export default function AdminExams() {
-  const [exams, setExams] = useState<any[]>([]);
+  const [exams, setExams] = useState<Exam[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchExams = async () => {
     try {
-      const { data } = await api.get("exams");
+      const { data } = await api.get<Exam[]>("exams");
       setExams(data);
     } catch (error: any) {
       console.error("Failed to fetch assessment fleet:", error);
@@ -45,7 +53,7 @@ export default function AdminExams() {
     try {
       await api.patch(`exams/${id}/publish`);
       // Update local state for instant feedback
-      setExams(exams.map((e: any) => e.id === id ? { ...e, status: 'published' } : e));
+      setExams(exams.map((e: Exam) => e.id === id ? { ...e, status: 'published' } : e));
     } catch (error) {
       alert("Publication failed. Verification required.");
     }
@@ -54,10 +62,9 @@ export default function AdminExams() {
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to decommission this blueprint? Internal data vectors will be purged.")) return;
     
-    const toastId = api.get === undefined ? "" : "deleting..."; // Placeholder for toast if available
     try {
       await api.delete(`exams/${id}`);
-      setExams(exams.filter((e: any) => e.id !== id));
+      setExams(exams.filter((e: Exam) => e.id !== id));
       // In a real app we'd use toast.success
     } catch (error) {
       alert("Decommissioning failed. System protocols active.");

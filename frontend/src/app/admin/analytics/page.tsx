@@ -14,7 +14,7 @@ export default function AnalyticsPage() {
   const [exportLoading, setExportLoading] = useState(false);
   const [selectedBar, setSelectedBar] = useState<number | null>(null);
   const [timeRange, setTimeRange] = useState("Week");
-  const [allResults, setAllResults] = useState([]);
+  const [allResults, setAllResults] = useState<any[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {

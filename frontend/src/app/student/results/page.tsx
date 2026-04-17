@@ -19,7 +19,7 @@ import confetti from "canvas-confetti";
 
 export default function ResultsHistory() {
   const router = useRouter();
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 

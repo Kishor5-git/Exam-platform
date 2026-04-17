@@ -8,11 +8,11 @@ import { toast } from "react-hot-toast";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function StudentsManagement() {
-  const [students, setStudents] = useState([]);
+  const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
-  const [userResults, setUserResults] = useState([]);
+  const [userResults, setUserResults] = useState<any[]>([]);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [showFilter, setShowFilter] = useState(false);
   const [sortBy, setSortBy] = useState("newest");

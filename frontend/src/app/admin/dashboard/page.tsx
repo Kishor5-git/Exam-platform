@@ -27,10 +27,10 @@ export default function AdminDashboard() {
     submissions: 0,
     average: "0%"
   });
-  const [exams, setExams] = useState([]);
-  const [allExams, setAllExams] = useState([]);
+  const [exams, setExams] = useState<any[]>([]);
+  const [allExams, setAllExams] = useState<any[]>([]);
   const [selectedDate, setSelectedDate] = useState<number | null>(null);
-  const [submissions, setSubmissions] = useState([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadLoading, setUploadLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

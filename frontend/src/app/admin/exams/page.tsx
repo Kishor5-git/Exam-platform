@@ -20,7 +20,7 @@ import Link from "next/link";
 import api from "@/services/api";
 
 export default function AdminExams() {
-  const [exams, setExams] = useState([]);
+  const [exams, setExams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchExams = async () => {

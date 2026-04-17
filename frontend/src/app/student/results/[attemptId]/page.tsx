@@ -11,7 +11,8 @@ import {
   ArrowRight,
   TrendingUp,
   Award,
-  BookOpen
+  BookOpen,
+  AlertCircle
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import api from "@/services/api";

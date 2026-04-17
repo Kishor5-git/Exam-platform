@@ -17,6 +17,8 @@ import {
   Send
 } from "lucide-react";
 import Link from "next/link";
+import api from "@/services/api";
+
 interface Exam {
   id: string;
   title: string;

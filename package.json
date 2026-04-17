@@ -1,0 +1,9 @@
+{
+  "name": "exam-pro-universal",
+  "private": true,
+  "description": "Authoritative Monorepo for ExamPro Universal",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ]
+}

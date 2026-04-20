@@ -259,16 +259,23 @@ router.get("/", authenticate, async (req: AuthRequest, res: Response) => {
       sql = `SELECT e.*, 
              (SELECT status FROM attempts WHERE exam_id = e.id AND user_id = ? AND status != 'cancelled' LIMIT 1) as attempt_status 
              FROM exams e 
-             WHERE e.status = 'published' AND e.schedule_end > CURRENT_TIMESTAMP 
+             WHERE e.status = 'published' AND DATETIME(e.schedule_end) > DATETIME('now') 
              ORDER BY e.created_at DESC`;
-      args = [req.user.id];
+      args = [req.user?.id || null];
     }
 
     const result = await db.execute({ sql, args } as any);
     res.json(result.rows);
   } catch (error: any) {
-    console.error("DISCOVERY_MANIFOLD_ANOMALY:", error);
-    res.status(500).json({ error: "Assessment discovery sector failed to synchronize." });
+    console.error("DISCOVERY_MANIFOLD_ANOMALY:", {
+      message: error.message,
+      stack: error.stack,
+      user: req.user
+    });
+    res.status(500).json({ 
+      error: "Assessment discovery sector failed to synchronize.",
+      diagnostic: error.message
+    });
   }
 });
 

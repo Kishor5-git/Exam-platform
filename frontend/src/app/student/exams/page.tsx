@@ -23,8 +23,9 @@ export default function StudentExams() {
       try {
         const { data } = await api.get("exams");
         setExams(data);
-      } catch (error) {
-        console.error("Failed to fetch exams manifest.");
+      } catch (error: any) {
+        console.error("DISCOVERY_PROTOCOL_ANOMALY:", error.response?.data || error.message);
+        // Silently handle - the UI will show the "No frontiers detected" state
       } finally {
         setLoading(false);
       }

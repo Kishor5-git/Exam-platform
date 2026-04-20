@@ -107,4 +107,56 @@ router.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+// Google Login (Auth Manifest Integration)
+router.post("/google-login", async (req: Request, res: Response) => {
+  try {
+    const { email, name, googleId } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required for identity mapping." });
+    }
+
+    // Check if user exists, if not create one
+    let result = await db.execute({
+      sql: "SELECT * FROM users WHERE email = ?",
+      args: [email]
+    } as any);
+
+    let user;
+    if (!result.rows || result.rows.length === 0) {
+      // Create a new user for this Google identity
+      const id = crypto.randomUUID();
+      const placeholderPassword = await hashPassword(crypto.randomBytes(16).toString('hex'));
+      
+      await db.execute({
+        sql: "INSERT INTO users (id, name, email, password, role) VALUES (?, ?, ?, ?, ?)",
+        args: [id, name || email.split('@')[0], email, placeholderPassword, "student"]
+      } as any);
+
+      result = await db.execute({
+        sql: "SELECT * FROM users WHERE id = ?",
+        args: [id]
+      } as any);
+    }
+    
+    user = result.rows[0];
+    const token = generateToken({ id: user.id as string, email: user.email as string, role: user.role as string });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profile_photo: user.profile_photo
+      }
+    });
+  } catch (error: any) {
+    console.error("Google Login Protocol Error:", error);
+    res.status(500).json({ error: "Identity federation failed." });
+  }
+});
+
+
 export default router;

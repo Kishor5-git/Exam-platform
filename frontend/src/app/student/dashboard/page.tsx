@@ -133,9 +133,9 @@ export default function StudentDashboard() {
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
-                { label: "Completion Rate", val: `${stats?.passing_rate || 0}%`, icon: CheckCircle2, sub: "Assessments finalized" },
-                { label: "Elite Standing", val: `#${stats?.global_rank || "-"}`, icon: Trophy, sub: "Global leaderboard rank" },
-                { label: "Total Missions", val: stats?.total_exams || 0, icon: Clock, sub: "Completed frontiers" }
+                { label: "Passing Rate", val: stats?.passing_rate || "0%", icon: CheckCircle2, sub: "Authority accuracy manifest" },
+                { label: "Global Standing", val: stats?.global_rank || "—", icon: Trophy, sub: "Global candidate ranking" },
+                { label: "Manifested Credits", val: stats?.total_credits || 0, icon: Clock, sub: "Total mastery accumulation" }
               ].map((stat, i) => (
                 <motion.div 
                   key={i}
@@ -158,9 +158,9 @@ export default function StudentDashboard() {
             <h2 className="text-2xl font-black uppercase tracking-tight">Mastery Statistics</h2>
             <div className="glass-panel p-8 space-y-6">
               {[
-                { label: "Completion Rate", val: stats?.exams_completed || 0, icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-                { label: "Global Ranking", val: stats?.global_rank || "-", icon: Trophy, color: "text-amber-400", bg: "bg-amber-500/10" },
-                { label: "Avg. Precision", val: stats?.average_score || "0%", icon: Star, color: "text-indigo-400", bg: "bg-indigo-500/10" }
+                { label: "Missions manifest", val: stats?.exams_completed || 0, icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+                { label: "Global Ranking", val: stats?.global_rank || "—", icon: Trophy, color: "text-amber-400", bg: "bg-amber-500/10" },
+                { label: "Total Credits", val: stats?.total_credits || 0, icon: Star, color: "text-indigo-400", bg: "bg-indigo-500/10" }
               ].map((item, i) => (
                 <div key={i} className="flex items-center justify-between p-6 bg-white/5 rounded-2xl border border-white/5">
                   <div className="flex items-center gap-4">

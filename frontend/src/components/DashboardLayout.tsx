@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   ChevronRight,
-  User
+  User,
+  Palette
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -34,7 +35,32 @@ export default function DashboardLayout({
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const themes = [
+    { name: "Default", primary: "263 90% 64%", secondary: "199 89% 48%", accent: "322 81% 55%" },
+    { name: "Emerald", primary: "142 71% 45%", secondary: "189 94% 43%", accent: "79 63% 50%" },
+    { name: "Solar", primary: "25 95% 53%", secondary: "48 96% 53%", accent: "0 84% 60%" },
+    { name: "Ocean", primary: "221 83% 53%", secondary: "199 89% 48%", accent: "262 83% 58%" },
+    { name: "Rose", primary: "330 81% 60%", secondary: "280 67% 60%", accent: "350 89% 60%" },
+    { name: "Monochrome", primary: "0 0% 80%", secondary: "0 0% 40%", accent: "0 0% 100%" }
+  ];
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    if (savedTheme) {
+      applyTheme(JSON.parse(savedTheme));
+    }
+  }, []);
+
+  const applyTheme = (theme: any) => {
+    const root = document.documentElement;
+    root.style.setProperty("--primary", theme.primary);
+    root.style.setProperty("--secondary", theme.secondary);
+    root.style.setProperty("--accent", theme.accent);
+    localStorage.setItem("theme", JSON.stringify(theme));
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,8 +180,56 @@ export default function DashboardLayout({
             <div className="relative">
               <button 
                 onClick={() => {
+                  setShowThemeMenu(!showThemeMenu);
+                  setShowNotifications(false);
+                  setShowProfileMenu(false);
+                }}
+                className={`p-2 hover:bg-white/5 rounded-full transition-all ${showThemeMenu ? "bg-white/5" : ""}`}
+                title="Change Theme"
+              >
+                <Palette className="w-5 h-5 text-gray-400" />
+              </button>
+
+              <AnimatePresence>
+                {showThemeMenu && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-4 w-64 glass-card p-4 border-white/10 shadow-2xl z-50 backdrop-blur-xl bg-[#0a0a0a]/90"
+                  >
+                    <h4 className="font-black text-xs uppercase tracking-widest italic mb-4">Neural Presets</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                       {themes.map(t => (
+                         <button 
+                           key={t.name}
+                           onClick={() => {
+                             applyTheme(t);
+                             setShowThemeMenu(false);
+                             toast.success(`${t.name} protocol activated`);
+                           }}
+                           className="flex flex-col gap-2 p-2 rounded-lg border border-white/5 hover:border-white/20 hover:bg-white/5 transition-all text-left"
+                         >
+                            <div className="flex gap-1">
+                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `hsl(${t.primary})` }} />
+                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `hsl(${t.secondary})` }} />
+                               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: `hsl(${t.accent})` }} />
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-tight">{t.name}</span>
+                         </button>
+                       ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="relative">
+              <button 
+                onClick={() => {
                   setShowNotifications(!showNotifications);
                   setShowProfileMenu(false);
+                  setShowThemeMenu(false);
                 }}
                 className={`relative p-2 hover:bg-white/5 rounded-full transition-all ${showNotifications ? "bg-white/5" : ""}`}
               >
@@ -196,6 +270,7 @@ export default function DashboardLayout({
                 onClick={() => {
                   setShowProfileMenu(!showProfileMenu);
                   setShowNotifications(false);
+                  setShowThemeMenu(false);
                 }}
                 className={`flex items-center gap-3 hover:opacity-80 transition-all p-1 rounded-xl ${showProfileMenu ? "bg-white/5" : ""}`}
               >
@@ -247,6 +322,7 @@ export default function DashboardLayout({
           onClick={() => {
             setShowNotifications(false);
             setShowProfileMenu(false);
+            setShowThemeMenu(false);
           }}
           className="flex-1 overflow-y-auto pr-2 custom-scrollbar"
         >

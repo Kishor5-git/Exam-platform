@@ -69,10 +69,10 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-6 mt-12 justify-center">
-            <Link href="/auth/login" className="btn-primary flex items-center gap-3 text-lg px-10 group">
+            <Link href="/auth/register" className="btn-primary flex items-center gap-3 text-lg px-10 group">
               Start Your Journey <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
-            <Link href="/auth/login" className="btn-neon text-lg px-10">
+            <Link href="#features" className="btn-neon text-lg px-10">
               Live Features
             </Link>
           </div>
@@ -127,19 +127,18 @@ export default function Home() {
       </section>
 
       {/* Modern Features Grid */}
-      <section className="max-w-7xl w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 py-32 px-6">
+      <section id="features" className="max-w-7xl w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 py-32 px-6 scroll-mt-24">
         {[
-          { icon: <Shield className="w-8 h-8 text-emerald-400"/>, title: "Fortress Security", desc: "Anti-cheat tab monitoring and AI-powered proctoring." },
-          { icon: <Zap className="w-8 h-8 text-amber-400"/>, title: "Nano-Sync", desc: "Server-side timers and 3-second recovery logic." },
-          { icon: <Code className="w-8 h-8 text-indigo-400"/>, title: "Coding IDE", desc: "Vibrant VS Code style editor with multi-language support." },
-          { icon: <Award className="w-8 h-8 text-purple-400"/>, title: "Premium Result", desc: "Stunning PDF certificates and depth-score analytics." }
+          { icon: <Shield className="w-8 h-8 text-emerald-400"/>, title: "Fortress Security", desc: "Anti-cheat tab monitoring and AI-powered proctoring.", btn: "View Security", variant: "btn-secondary" },
+          { icon: <Zap className="w-8 h-8 text-amber-400"/>, title: "Nano-Sync", desc: "Server-side timers and 3-second recovery logic.", btn: "Live Demo", variant: "btn-neon" },
+          { icon: <Code className="w-8 h-8 text-indigo-400"/>, title: "Coding IDE", desc: "Vibrant VS Code style editor with multi-language support.", btn: "Start Coding", variant: "btn-primary" },
+          { icon: <Award className="w-8 h-8 text-purple-400"/>, title: "Premium Result", desc: "Stunning PDF certificates and depth-score analytics.", btn: "View Samples", variant: "btn-secondary" }
         ].map((f, i) => (
           <motion.div 
             key={i}
-            className="glass-card p-8 group relative overflow-hidden"
-            whileHover={{ y: -10 }}
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
+            className="glass-panel p-8 group relative overflow-hidden h-full flex flex-col items-start"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.1 }}
           >
@@ -148,7 +147,11 @@ export default function Home() {
               {f.icon}
             </div>
             <h3 className="text-xl font-bold mb-4">{f.title}</h3>
-            <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
+            <p className="text-gray-500 text-sm leading-relaxed mb-8 flex-grow">{f.desc}</p>
+            
+            <Link href="/auth/register" className={`w-full text-center py-3 rounded-xl text-xs font-black uppercase tracking-[0.2em] transition-all ${f.variant} opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 duration-300`}>
+              {f.btn}
+            </Link>
           </motion.div>
         ))}
       </section>

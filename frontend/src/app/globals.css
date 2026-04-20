@@ -26,8 +26,8 @@ body {
   color: hsl(var(--foreground));
   background-color: hsl(var(--background));
   background-image: 
-    radial-gradient(at 0% 0%, hsla(263, 90%, 64%, 0.15) 0, transparent 50%),
-    radial-gradient(at 100% 100%, hsla(199, 89%, 48%, 0.15) 0, transparent 50%);
+    radial-gradient(at 0% 0%, hsla(var(--primary), 0.15) 0, transparent 50%),
+    radial-gradient(at 100% 100%, hsla(var(--secondary), 0.15) 0, transparent 50%);
   background-attachment: fixed;
   min-height: 100vh;
   font-feature-settings: "salt" 1, "ss01" 1, "ss02" 1;
@@ -35,27 +35,96 @@ body {
 
 @layer components {
   .glass-card {
-  @apply bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_8px_32px_0_rgba(0,0,0,0.37)];
-}
+    background-color: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
 
-.glass-panel {
-  @apply bg-gradient-to-br from-white/[0.05] to-transparent backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)];
-}
+  .glass-panel {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), transparent);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  }
   
   .btn-primary {
-    @apply bg-[#8b5cf6] hover:bg-[#a78bfa] text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(139,92,246,0.4)] hover:shadow-[0_0_30px_rgba(139,92,246,0.6)];
+    color: white;
+    font-weight: 700;
+    padding: 0.75rem 2rem;
+    border-radius: 0.75rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: none;
+    background-color: hsl(var(--primary));
+    box-shadow: 0 0 20px hsla(var(--primary), 0.4);
+  }
+
+  .btn-primary:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px hsla(var(--primary), 0.6);
+    filter: brightness(1.2);
+  }
+
+  .btn-primary:active {
+    transform: scale(0.95);
   }
 
   .btn-secondary {
-    @apply bg-white/5 hover:bg-white/10 text-white font-bold py-3 px-8 rounded-xl transition-all duration-300 backdrop-blur-md border border-white/10 hover:border-white/20;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: white;
+    font-weight: 700;
+    padding: 0.75rem 2rem;
+    border-radius: 0.75rem;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
   }
   
   .btn-neon {
-    @apply bg-transparent border-2 border-[#00d2ff] text-[#00d2ff] font-black py-3 px-8 rounded-xl hover:bg-[#00d2ff] hover:text-black transition-all duration-500 shadow-[0_0_15px_#00d2ff] hover:shadow-[0_0_30px_#00d2ff];
+    background-color: transparent;
+    border: 2px solid hsl(var(--secondary));
+    color: hsl(var(--secondary));
+    font-weight: 900;
+    padding: 0.75rem 2rem;
+    border-radius: 0.75rem;
+    transition: all 0.5s ease;
+    box-shadow: 0 0 15px hsla(var(--secondary), 0.5);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .btn-neon:hover {
+    background-color: hsl(var(--secondary));
+    color: black;
+    box-shadow: 0 0 30px hsla(var(--secondary), 0.8);
   }
   
   .gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-[#8b5cf6] via-[#d946ef] to-[#0ea5e9] font-black tracking-tight;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    background-image: linear-gradient(to right, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--secondary)));
   }
 
   .float-animation {
@@ -75,6 +144,10 @@ body {
     background: transparent;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.2);
   }
 }

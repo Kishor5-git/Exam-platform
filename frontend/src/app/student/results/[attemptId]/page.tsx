@@ -17,6 +17,10 @@ import {
 import { useRouter, useParams } from "next/navigation";
 import api from "@/services/api";
 import confetti from "canvas-confetti";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { toast } from "react-hot-toast";
+import { Download } from "lucide-react";
 
 export default function DetailedResultPage() {
   const { attemptId } = useParams();
@@ -49,6 +53,113 @@ export default function DetailedResultPage() {
     };
     fetchResult();
   }, [attemptId]);
+
+  const downloadPDF = async () => {
+    if (!result) return;
+    const toastId = toast.loading("Synthesizing Report Manifest...");
+    try {
+      const { data } = await api.get(`results/my-review/${attemptId}`);
+      const { attempt, review } = data;
+
+      const doc = new jsPDF() as any;
+      
+      // Header with Dark Core Aesthetic
+      doc.setFillColor(5, 5, 5);
+      doc.rect(0, 0, 210, 45, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont("helvetica", "bold");
+      doc.text("PERFORMANCE MANIFEST", 15, 25);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text("EXAMPRO NEXT-GEN ASSESSMENT SUITE • RECORD ID: " + (attemptId as string).toUpperCase(), 15, 35);
+
+      // Student and Exam Details
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Identity & Evaluation Metrics", 15, 60);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      const metrics = [
+        ["Candidate Name", user.name || "Anonymous Student"],
+        ["Examination Title", result.exam_title || "Examination"],
+        ["Final Precision Score", `${result.score}%`],
+        ["Authority Status", Number(result.score) >= 40 ? "PASS (Certified)" : "FAIL (Insufficient)"],
+        ["Temporal Signature", new Date(result.end_time || Date.now()).toLocaleString()]
+      ];
+
+      autoTable(doc, {
+        startY: 65,
+        body: metrics,
+        theme: 'plain',
+        styles: { fontSize: 10, cellPadding: 2 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } }
+      });
+
+      // Questions Detail Table
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Detailed Question Log", 15, (doc as any).lastAutoTable.finalY + 15);
+
+      const tableRows = review.map((r: any, idx: number) => {
+        return [
+          idx + 1,
+          r.question_text,
+          r.student_response || "NOT ATTEMPTED",
+          r.correct_answer,
+          r.is_correct ? `${r.marks}/${r.marks}` : `0/${r.marks}`
+        ];
+      });
+
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 20,
+        head: [['#', 'Question Protocol', 'Student Response', 'Correct Answer', 'Marks']],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [139, 92, 246], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 5 },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 40 },
+          4: { cellWidth: 20, halign: 'center' }
+        },
+        didParseCell: function(data: any) {
+          if (data.section === 'body' && data.column.index === 4) {
+            const marksStr = data.cell.raw;
+            if (marksStr.startsWith('0/')) {
+              data.cell.styles.textColor = [220, 38, 38]; // Red for 0 marks
+            } else {
+              data.cell.styles.textColor = [5, 150, 105]; // Green for full marks
+            }
+          }
+        }
+      });
+
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${pageCount} • ExamPro Official Performance Manifest`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+      }
+
+      doc.save(`Result_${(result.exam_title || "Exam").replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
+      toast.success("Performance Manifest Generated", { id: toastId });
+    } catch (error) {
+      console.error("PDF_GENERATION_FAILURE:", error);
+      toast.error("Failed to synthesize report manifest.", { id: toastId });
+    }
+  };
 
   if (loading) return (
     <DashboardLayout role="student">
@@ -94,6 +205,16 @@ export default function DetailedResultPage() {
                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Marks Obtained</p>
                <p className="text-6xl font-black text-white">{result.marks_obtained}</p>
             </div>
+          </div>
+
+          <div className="mt-12 flex justify-center">
+             <button 
+               onClick={downloadPDF}
+               className="btn-secondary px-8 py-4 flex items-center gap-3 group border-indigo-500/30 hover:border-indigo-500/60"
+             >
+                <Download className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span className="text-xs font-black uppercase tracking-widest">Download Detailed Performance Manifest</span>
+             </button>
           </div>
         </motion.div>
 

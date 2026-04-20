@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Mail, Lock, LogIn, Layout, Globe, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, LogIn, Globe, AlertCircle, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import api from "@/services/api";
@@ -30,6 +30,40 @@ export default function LoginPage() {
       }
     } catch (error: any) {
       toast.error(error.response?.data?.error || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    const toastId = toast.loading("Initializing Google Auth...");
+    
+    try {
+      // In a real app, you'd use @react-oauth/google or Firebase
+      // Here we simulate the popup/callback flow for a premium demo experience
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const mockGoogleData = {
+        email: "student.demo@gmail.com",
+        name: "Demo Student",
+        googleId: "google_123456789"
+      };
+
+      const { data } = await api.post("auth/google-login", mockGoogleData);
+      
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      
+      toast.success(`Authenticated as ${data.user.name}`, { id: toastId });
+      
+      if (data.user.role === "admin") {
+        router.push("/admin/dashboard");
+      } else {
+        router.push("/student/dashboard");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || "Google Auth Protocol failed", { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -106,14 +140,15 @@ export default function LoginPage() {
             <span className="bg-[#050505] px-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 absolute">Or continue with</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <button className="btn-secondary py-4 flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-widest">
-              <Globe className="w-4 h-4 text-primary" /> Google
-            </button>
-            <button className="btn-secondary py-4 flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-widest">
-              <Layout className="w-4 h-4 text-primary" /> Github
-            </button>
-          </div>
+          <button 
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full btn-secondary py-4 flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-widest transition-all hover:bg-white/10 group disabled:opacity-50"
+          >
+            <Globe className="w-4 h-4 text-primary group-hover:rotate-12 transition-transform" /> 
+            {loading ? "Authenticating..." : "Continue with Google"}
+          </button>
         </div>
 
         <p className="mt-10 text-center text-gray-500 text-sm font-medium">

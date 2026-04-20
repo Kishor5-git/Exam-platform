@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import api from "@/services/api";
 import { motion } from "framer-motion";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { toast } from "react-hot-toast";
+import { Download } from "lucide-react";
 
 export default function ExamReview() {
   const { examId, attemptId } = useParams();
@@ -35,6 +39,112 @@ export default function ExamReview() {
     };
     fetchReview();
   }, [attemptId]);
+
+  const downloadPDF = async () => {
+    if (!data) return;
+    try {
+      const toastId = toast.loading("Synthesizing Report Manifest...");
+      const { attempt, review } = data;
+
+      const doc = new jsPDF() as any;
+      
+      // Header with Dark Core Aesthetic
+      doc.setFillColor(5, 5, 5);
+      doc.rect(0, 0, 210, 45, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont("helvetica", "bold");
+      doc.text("PERFORMANCE MANIFEST", 15, 25);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text("EXAMPRO NEXT-GEN ASSESSMENT SUITE • RECORD ID: " + (attemptId as string).toUpperCase(), 15, 35);
+
+      // Student and Exam Details
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Identity & Evaluation Metrics", 15, 60);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      const metrics = [
+        ["Candidate Name", user.name || "Anonymous Student"],
+        ["Examination Title", attempt.title || "Examination"],
+        ["Final Precision Score", `${attempt.score}%`],
+        ["Authority Status", Number(attempt.score) >= 40 ? "PASS (Certified)" : "FAIL (Insufficient)"],
+        ["Temporal Signature", new Date(attempt.end_time).toLocaleString()]
+      ];
+
+      autoTable(doc, {
+        startY: 65,
+        body: metrics,
+        theme: 'plain',
+        styles: { fontSize: 10, cellPadding: 2 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } }
+      });
+
+      // Questions Detail Table
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Detailed Question Log", 15, (doc as any).lastAutoTable.finalY + 15);
+
+      const tableRows = review.map((r: any, idx: number) => {
+        return [
+          idx + 1,
+          r.question_text,
+          r.student_response || "NOT ATTEMPTED",
+          r.correct_answer,
+          r.is_correct ? `${r.marks}/${r.marks}` : `0/${r.marks}`
+        ];
+      });
+
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 20,
+        head: [['#', 'Question Protocol', 'Student Response', 'Correct Answer', 'Marks']],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [139, 92, 246], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 5 },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 40 },
+          4: { cellWidth: 20, halign: 'center' }
+        },
+        didParseCell: function(data: any) {
+          if (data.section === 'body' && data.column.index === 4) {
+            const marksStr = data.cell.raw;
+            if (marksStr.startsWith('0/')) {
+              data.cell.styles.textColor = [220, 38, 38]; // Red for 0 marks
+            } else {
+              data.cell.styles.textColor = [5, 150, 105]; // Green for full marks
+            }
+          }
+        }
+      });
+
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${pageCount} • ExamPro Official Performance Manifest`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+      }
+
+      doc.save(`Result_${(attempt.title || "Exam").replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
+      toast.success("Performance Manifest Generated", { id: toastId });
+    } catch (error) {
+      console.error("PDF_GENERATION_FAILURE:", error);
+      toast.error("Failed to synthesize report manifest.");
+    }
+  };
 
   if (loading) return (
     <DashboardLayout role="student">
@@ -78,11 +188,18 @@ export default function ExamReview() {
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Final Score</span>
                 <span className={`text-2xl font-black ${attempt.score >= 40 ? 'text-emerald-400' : 'text-red-400'}`}>{attempt.score}%</span>
              </div>
-             <div className="glass-panel px-6 py-4 border-white/5 flex flex-col items-center min-w-[120px]">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Accuracy</span>
-                <span className="text-2xl font-black text-indigo-400">{correctCount}/{review.length}</span>
-             </div>
-          </div>
+              <div className="glass-panel px-6 py-4 border-white/5 flex flex-col items-center min-w-[120px]">
+                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Accuracy</span>
+                 <span className="text-2xl font-black text-indigo-400">{correctCount}/{review.length}</span>
+              </div>
+              <button 
+                onClick={downloadPDF}
+                className="btn-secondary px-6 py-4 flex flex-col items-center justify-center min-w-[120px] group border-indigo-500/20 hover:border-indigo-500/50"
+              >
+                 <Download className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform mb-1" />
+                 <span className="text-[10px] font-black uppercase tracking-widest">Download PDF</span>
+              </button>
+           </div>
         </div>
 
         {/* Detailed Review Grid */}

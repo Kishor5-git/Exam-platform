@@ -16,22 +16,28 @@ import {
 import { useRouter } from "next/navigation";
 import api from "@/services/api";
 import confetti from "canvas-confetti";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { toast } from "react-hot-toast";
 
 export default function ResultsHistory() {
   const router = useRouter();
   const [results, setResults] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [resultsRes, leaderboardRes] = await Promise.all([
+        const [resultsRes, leaderboardRes, statsRes] = await Promise.all([
           api.get("results/my-results"),
-          api.get("stats/leaderboard")
+          api.get("stats/leaderboard"),
+          api.get("stats/student")
         ]);
         setResults(resultsRes.data);
         setLeaderboard(leaderboardRes.data);
+        setStats(statsRes.data);
         
         // Trigger celebration if latest mission was successful
         if (resultsRes.data.length > 0) {
@@ -54,6 +60,112 @@ export default function ResultsHistory() {
     fetchData();
   }, []);
 
+  const downloadPDF = async (attemptId: string, examTitle: string) => {
+    try {
+      const toastId = toast.loading("Synthesizing Report Manifest...");
+      const { data } = await api.get(`results/my-review/${attemptId}`);
+      const { attempt, review } = data;
+
+      const doc = new jsPDF() as any;
+      
+      // Header with Dark Core Aesthetic
+      doc.setFillColor(5, 5, 5);
+      doc.rect(0, 0, 210, 45, 'F');
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(24);
+      doc.setFont("helvetica", "bold");
+      doc.text("PERFORMANCE MANIFEST", 15, 25);
+      
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.text("EXAMPRO NEXT-GEN ASSESSMENT SUITE • RECORD ID: " + attemptId.toUpperCase(), 15, 35);
+
+      // Student and Exam Details
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Identity & Evaluation Metrics", 15, 60);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      
+      const metrics = [
+        ["Candidate Name", user.name || "Anonymous Student"],
+        ["Examination Title", examTitle],
+        ["Final Precision Score", `${attempt.score}%`],
+        ["Authority Status", Number(attempt.score) >= 40 ? "PASS (Certified)" : "FAIL (Insufficient)"],
+        ["Temporal Signature", new Date(attempt.end_time).toLocaleString()]
+      ];
+
+      autoTable(doc, {
+        startY: 65,
+        body: metrics,
+        theme: 'plain',
+        styles: { fontSize: 10, cellPadding: 2 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } }
+      });
+
+      // Questions Detail Table
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Detailed Question Log", 15, (doc as any).lastAutoTable.finalY + 15);
+
+      const tableRows = review.map((r: any, idx: number) => {
+        return [
+          idx + 1,
+          r.question_text,
+          r.student_response || "NOT ATTEMPTED",
+          r.correct_answer,
+          r.is_correct ? `${r.marks}/${r.marks}` : `0/${r.marks}`
+        ];
+      });
+
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 20,
+        head: [['#', 'Question Protocol', 'Student Response', 'Correct Answer', 'Marks']],
+        body: tableRows,
+        theme: 'grid',
+        headStyles: { fillColor: [139, 92, 246], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 5 },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 40 },
+          4: { cellWidth: 20, halign: 'center' }
+        },
+        didParseCell: function(data: any) {
+          if (data.section === 'body' && data.column.index === 4) {
+            const marksStr = data.cell.raw;
+            if (marksStr.startsWith('0/')) {
+              data.cell.styles.textColor = [220, 38, 38]; // Red for 0 marks
+            } else {
+              data.cell.styles.textColor = [5, 150, 105]; // Green for full marks
+            }
+          }
+        }
+      });
+
+      // Footer
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text(`Page ${i} of ${pageCount} • ExamPro Official Performance Manifest`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+      }
+
+      doc.save(`Result_${examTitle.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
+      toast.success("Performance Manifest Generated", { id: toastId });
+    } catch (error) {
+      console.error("PDF_GENERATION_FAILURE:", error);
+      toast.error("Failed to synthesize report manifest.");
+    }
+  };
+
   return (
     <DashboardLayout role="student">
       <div className="space-y-8 pb-10">
@@ -74,24 +186,24 @@ export default function ResultsHistory() {
                <div className="p-3 bg-amber-500/10 rounded-xl"><Trophy className="w-6 h-6 text-amber-500" /></div>
                <span className="text-gray-400 font-medium">Global Rank</span>
              </div>
-             <p className="text-4xl font-black text-amber-400">#124</p>
-             <p className="text-xs text-amber-500/60 mt-2 font-bold uppercase tracking-widest">Top 5% of all students</p>
+             <p className="text-4xl font-black text-amber-400">{stats?.global_rank || "—"}</p>
+             <p className="text-xs text-amber-500/60 mt-2 font-bold uppercase tracking-widest">Across all manifest candidates</p>
           </div>
           <div className="glass-card p-6 border-white/5 bg-gradient-to-br from-emerald-500/10 to-transparent">
              <div className="flex items-center gap-4 mb-4">
                <div className="p-3 bg-emerald-500/10 rounded-xl"><CheckCircle className="w-6 h-6 text-emerald-500" /></div>
                <span className="text-gray-400 font-medium">Passing Rate</span>
              </div>
-             <p className="text-4xl font-black text-emerald-400">92%</p>
-             <p className="text-xs text-emerald-500/60 mt-2 font-bold uppercase tracking-widest">+4% vs last term</p>
+             <p className="text-4xl font-black text-emerald-400">{stats?.passing_rate || "0%"}</p>
+             <p className="text-xs text-emerald-500/60 mt-2 font-bold uppercase tracking-widest">Overall Authority Accuracy</p>
           </div>
           <div className="glass-card p-6 border-white/5 bg-gradient-to-br from-indigo-500/10 to-transparent">
              <div className="flex items-center gap-4 mb-4">
                <div className="p-3 bg-indigo-500/10 rounded-xl"><FileText className="w-6 h-6 text-indigo-500" /></div>
                <span className="text-gray-400 font-medium">Total Credits</span>
              </div>
-             <p className="text-4xl font-black text-indigo-400">2,450</p>
-             <p className="text-xs text-indigo-500/60 mt-2 font-bold uppercase tracking-widest">Mastery Level 4</p>
+             <p className="text-4xl font-black text-indigo-400">{stats?.total_credits || "0"}</p>
+             <p className="text-xs text-indigo-500/60 mt-2 font-bold uppercase tracking-widest">Mastery Level {stats?.mastery_level || 1}</p>
           </div>
         </div>
 
@@ -150,8 +262,9 @@ export default function ResultsHistory() {
                                 Review Feed
                               </button>
                               <button 
-                                onClick={(e) => { e.stopPropagation(); window.print(); }}
+                                onClick={(e) => { e.stopPropagation(); downloadPDF(r.id, r.title); }}
                                 className="p-2 hover:bg-white/10 rounded-lg transition-all text-gray-500 hover:text-white"
+                                title="Download Report Manifest"
                               >
                                 <Download className="w-5 h-5" />
                               </button>

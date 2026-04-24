@@ -44,7 +44,7 @@ export default function ExamReview() {
     if (!data) return;
     try {
       const toastId = toast.loading("Synthesizing Report Manifest...");
-      const { attempt, review } = data;
+      const { attempt, review } = data || { attempt: {}, review: [] };
 
       const doc = new jsPDF() as any;
       
@@ -59,10 +59,16 @@ export default function ExamReview() {
       
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
-      doc.text("EXAMPRO NEXT-GEN ASSESSMENT SUITE • RECORD ID: " + (attemptId as string).toUpperCase(), 15, 35);
+      doc.text("EXAMPRO NEXT-GEN ASSESSMENT SUITE • RECORD ID: " + String(attemptId || "UNKNOWN").toUpperCase(), 15, 35);
 
       // Student and Exam Details
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      let user = { name: "Anonymous Student" };
+      try {
+        const stored = localStorage.getItem("user");
+        if (stored && stored !== "[object Object]") user = JSON.parse(stored);
+      } catch (e) {
+        console.warn("PDF generation using fallback identity.");
+      }
       
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(14);
@@ -74,10 +80,10 @@ export default function ExamReview() {
       
       const metrics = [
         ["Candidate Name", user.name || "Anonymous Student"],
-        ["Examination Title", attempt.title || "Examination"],
-        ["Final Precision Score", `${attempt.score}%`],
-        ["Authority Status", Number(attempt.score) >= 40 ? "PASS (Certified)" : "FAIL (Insufficient)"],
-        ["Temporal Signature", new Date(attempt.end_time).toLocaleString()]
+        ["Examination Title", attempt?.title || "Examination"],
+        ["Final Precision Score", `${attempt?.score || 0}%`],
+        ["Authority Status", Number(attempt?.score || 0) >= 40 ? "PASS (Certified)" : "FAIL (Insufficient)"],
+        ["Temporal Signature", attempt?.end_time ? new Date(attempt.end_time).toLocaleString() : "Unknown"]
       ];
 
       autoTable(doc, {
@@ -93,13 +99,13 @@ export default function ExamReview() {
       doc.setFont("helvetica", "bold");
       doc.text("Detailed Question Log", 15, (doc as any).lastAutoTable.finalY + 15);
 
-      const tableRows = review.map((r: any, idx: number) => {
+      const tableRows = (review || []).map((r: any, idx: number) => {
         return [
           idx + 1,
-          r.question_text,
+          r.question_text || "Missing Question Data",
           r.student_response || "NOT ATTEMPTED",
-          r.correct_answer,
-          r.is_correct ? `${r.marks}/${r.marks}` : `0/${r.marks}`
+          r.correct_answer || "N/A",
+          r.is_correct ? `${r.marks || 0}/${r.marks || 0}` : `0/${r.marks || 0}`
         ];
       });
 
@@ -119,7 +125,7 @@ export default function ExamReview() {
         },
         didParseCell: function(data: any) {
           if (data.section === 'body' && data.column.index === 4) {
-            const marksStr = data.cell.raw;
+            const marksStr = String(data.cell.raw);
             if (marksStr.startsWith('0/')) {
               data.cell.styles.textColor = [220, 38, 38]; // Red for 0 marks
             } else {
@@ -164,8 +170,8 @@ export default function ExamReview() {
     </DashboardLayout>
   );
 
-  const { attempt, review } = data;
-  const correctCount = review.filter((r: any) => r.is_correct).length;
+  const { attempt, review } = data || { attempt: {}, review: [] };
+  const correctCount = (review || []).filter((r: any) => r.is_correct).length;
 
   return (
     <DashboardLayout role="student">
@@ -186,11 +192,11 @@ export default function ExamReview() {
           <div className="flex gap-4">
              <div className="glass-panel px-6 py-4 border-white/5 flex flex-col items-center min-w-[120px]">
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Final Score</span>
-                <span className={`text-2xl font-black ${attempt.score >= 40 ? 'text-emerald-400' : 'text-red-400'}`}>{attempt.score}%</span>
+                <span className={`text-2xl font-black ${(attempt?.score || 0) >= 40 ? 'text-emerald-400' : 'text-red-400'}`}>{attempt?.score || 0}%</span>
              </div>
               <div className="glass-panel px-6 py-4 border-white/5 flex flex-col items-center min-w-[120px]">
                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Accuracy</span>
-                 <span className="text-2xl font-black text-indigo-400">{correctCount}/{review.length}</span>
+                 <span className="text-2xl font-black text-indigo-400">{correctCount}/{(review || []).length}</span>
               </div>
               <button 
                 onClick={downloadPDF}
@@ -209,8 +215,13 @@ export default function ExamReview() {
           </h2>
           
           <div className="space-y-6">
-            {review.map((item: any, idx: number) => {
-              const options = JSON.parse(item.options || "[]");
+            {(review || []).map((item: any, idx: number) => {
+              let options = [];
+              try {
+                options = typeof item.options === 'string' ? JSON.parse(item.options || "[]") : (item.options || []);
+              } catch (e) {
+                options = [];
+              }
               return (
                 <motion.div 
                   key={item.question_id}

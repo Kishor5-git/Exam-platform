@@ -88,18 +88,31 @@ import { autoSubmitExpiredAttempts } from "./routes/attempt";
 // Start server
 const startServer = async () => {
   try {
+    console.log("📡 Initializing Database Sector...");
     await initDb();
     
     // Initiate Background Watchdog (Scan every 1 minute)
     setInterval(autoSubmitExpiredAttempts, 60 * 1000);
     console.log("🛡️  [WATCHDOG_ACTIVE]: Temporal Fail-safe scanner initiated.");
 
-    app.listen(Number(PORT), '0.0.0.0', () => {
-      console.log(`🚀 Server running on http://127.0.0.1:${PORT}`);
+    const server = app.listen(Number(PORT), '0.0.0.0', () => {
+      console.log(`🚀 Production Manifold Active on Port ${PORT}`);
+      console.log(`🔗 Health Check: http://localhost:${PORT}/health`);
     });
+
+    // Handle abrupt decommissioning
+    process.on('SIGTERM', () => {
+      console.log('SIGTERM signal received: closing HTTP server');
+      server.close(() => {
+        console.log('HTTP server closed');
+        process.exit(0);
+      });
+    });
+
   } catch (err) {
-    console.error("FATAL ERROR DURING STARTUP:", err);
-    process.exit(1);
+    console.error("❌ [FATAL_LAUNCH_FAILURE]:", err);
+    // Give logs time to flush before exit
+    setTimeout(() => process.exit(1), 500);
   }
 };
 

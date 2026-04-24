@@ -5,5 +5,12 @@
   "workspaces": [
     "frontend",
     "backend"
-  ]
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "start:frontend": "npm start --workspace=frontend",
+    "start:backend": "npm start --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend"
+  }
 }

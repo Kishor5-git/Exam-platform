@@ -191,9 +191,16 @@ export default function AdminDashboard() {
     <DashboardLayout role="admin">
       <div className="space-y-8 pb-10">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <h1 className="text-4xl font-black mb-2 tracking-tight">Mission <span className="gradient-text">Control</span></h1>
-            <p className="text-gray-500 font-medium">Monitoring the pulse of your academic excellence.</p>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-5xl font-black uppercase tracking-tighter">
+                Mission <span className="gradient-text">Control</span>
+              </h1>
+              <div className="px-2 py-1 rounded bg-indigo-500/20 border border-indigo-500/30 text-[10px] font-bold text-indigo-400 uppercase tracking-widest">
+                v2.0.4-LATEST
+              </div>
+            </div>
+            <p className="text-gray-400 font-medium tracking-wide">Monitoring the pulse of your academic excellence.</p>
           </div>
           <div className="flex gap-4">
              <Link href="/admin/analytics" className="btn-secondary py-2 px-6 flex items-center gap-2 text-sm italic">

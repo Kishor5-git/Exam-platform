@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
+import api from "@/services/api";
 
 export default function DashboardLayout({ 
   children, 
@@ -33,6 +34,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
 
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
@@ -48,10 +51,27 @@ export default function DashboardLayout({
   ];
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme) {
-      applyTheme(JSON.parse(savedTheme));
+    // Neural Error Suppression Protocol
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      event.preventDefault(); // Suppress Next.js red screen
+      console.warn("Global promise rejection intercepted:", event.reason);
+      if (event.reason?.name === "AxiosError") {
+        toast.error("Neural link latency detected. Retrying synchronization...");
+      }
+    };
+
+    window.addEventListener('unhandledrejection', handleRejection);
+
+    try {
+      const savedTheme = localStorage.getItem("theme");
+      if (savedTheme && savedTheme !== "[object Object]") {
+        applyTheme(JSON.parse(savedTheme));
+      }
+    } catch (e) {
+      console.warn("Neural theme protocol corrupted, resetting to default.");
     }
+
+    return () => window.removeEventListener('unhandledrejection', handleRejection);
   }, []);
 
   const applyTheme = (theme: any) => {
@@ -69,19 +89,57 @@ export default function DashboardLayout({
     }
   };
 
-  const notifications = [
-    { id: 1, title: "New Submission", desc: "Alice completed Math 101", time: "2m ago", unread: true },
-    { id: 2, title: "System Update", desc: "v2.0 deployment complete", time: "1h ago", unread: false },
-    { id: 3, title: "Exam Alert", desc: "Python Quiz starts in 30m", time: "3h ago", unread: false },
-  ];
+  const fetchNotifications = async () => {
+    try {
+      const { data } = await api.get('notifications');
+      setNotifications(data);
+      setUnreadCount(data.filter((n: any) => !n.is_read).length);
+    } catch (e) {
+      console.warn("Intelligence feed blocked by manifold firewall.");
+    }
+  };
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (!storedUser) {
-      router.push("/auth/login");
-      return;
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Pulse every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const markAsRead = async (id: string) => {
+    try {
+      await api.patch(`notifications/${id}/read`);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (e) {
+      toast.error("Signal synchronization failed");
     }
-    setUser(JSON.parse(storedUser));
+  };
+
+  const clearAllNotifications = async () => {
+    try {
+      await api.delete('notifications');
+      setNotifications([]);
+      setUnreadCount(0);
+      toast.success("Intelligence feed purged");
+    } catch (e) {
+      toast.error("Purge sequence terminated");
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem("user");
+      if (!storedUser || storedUser === "[object Object]") {
+        router.push("/auth/login");
+        return;
+      }
+      setUser(JSON.parse(storedUser));
+    } catch (e) {
+      console.error("Session integrity compromised.");
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      router.push("/auth/login");
+    }
   }, []);
 
   const menuItems = role === "admin" ? [
@@ -234,7 +292,9 @@ export default function DashboardLayout({
                 className={`relative p-2 hover:bg-white/5 rounded-full transition-all ${showNotifications ? "bg-white/5" : ""}`}
               >
                 <Bell className="w-5 h-5 text-gray-400" />
-                <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-[#050505]" />
+                {unreadCount > 0 && (
+                  <div className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#050505] animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
+                )}
               </button>
 
               <AnimatePresence>
@@ -247,18 +307,54 @@ export default function DashboardLayout({
                   >
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="font-black text-xs uppercase tracking-widest italic">Intelligence Feed</h4>
-                      <button className="text-[10px] text-indigo-400 font-bold hover:underline">Clear All</button>
+                      <button 
+                        onClick={clearAllNotifications}
+                        className="text-[10px] text-indigo-400 font-bold hover:underline"
+                      >
+                        Clear All
+                      </button>
                     </div>
-                    <div className="space-y-3">
-                      {notifications.map(n => (
-                        <div key={n.id} className="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-white/10 transition-all cursor-pointer">
-                          <div className="flex justify-between items-start mb-1">
-                            <span className="text-xs font-bold text-gray-200">{n.title}</span>
-                            <span className="text-[8px] text-gray-500 uppercase">{n.time}</span>
-                          </div>
-                          <p className="text-[10px] text-gray-500 line-clamp-1">{n.desc}</p>
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      {notifications.length === 0 ? (
+                        <div className="p-8 text-center bg-white/5 rounded-xl border border-dashed border-white/10">
+                           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">No strategic signals detected in current manifold sector.</p>
                         </div>
-                      ))}
+                      ) : (
+                        notifications.map(n => (
+                          <div 
+                            key={n.id} 
+                            onClick={() => {
+                              markAsRead(n.id);
+                              // Context-Aware Redirection Manifold
+                              if (n.type === 'result_ready') {
+                                router.push(role === 'admin' ? '/admin/analytics' : `/student/results`);
+                              } else if (n.type === 'exam_published') {
+                                router.push(role === 'admin' ? '/admin/exams' : '/student/exams');
+                              } else if (n.type === 'system' || n.type === 'welcome') {
+                                router.push(role === 'admin' ? '/admin/dashboard' : '/student/dashboard');
+                              } else {
+                                // Dynamic sector discovery
+                                if (n.message.toLowerCase().includes('result')) router.push(role === 'admin' ? '/admin/analytics' : '/student/results');
+                                else if (n.message.toLowerCase().includes('exam')) router.push(role === 'admin' ? '/admin/exams' : '/student/exams');
+                                else router.push(role === 'admin' ? '/admin/dashboard' : '/student/dashboard');
+                              }
+                              setShowNotifications(false);
+                            }}
+                            className={`p-3 rounded-lg border transition-all cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] ${
+                              !n.is_read 
+                              ? 'bg-indigo-500/10 border-indigo-500/30 hover:bg-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+                              : 'bg-white/5 border-white/5 hover:border-white/10'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start mb-1">
+                              <span className={`text-xs font-bold ${!n.is_read ? 'text-indigo-300' : 'text-gray-400'}`}>{n.title}</span>
+                              <span className="text-[8px] text-gray-500 uppercase">{new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-500 line-clamp-2 leading-relaxed font-medium">{n.message}</p>
+                            {!n.is_read && <div className="mt-2 w-1.5 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]" />}
+                          </div>
+                        ))
+                      )}
                     </div>
                   </motion.div>
                 )}

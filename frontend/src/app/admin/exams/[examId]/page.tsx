@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { 
   ArrowLeft, 
@@ -15,7 +15,8 @@ import {
   FileSpreadsheet,
   CheckCircle,
   HelpCircle,
-  Code2
+  Code2,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
@@ -40,6 +41,12 @@ export default function ExamDetails() {
     marks: 10,
     coding_language: "javascript"
   });
+
+  // Bulk Upload State
+  const [showBulkPreview, setShowBulkPreview] = useState(false);
+  const [bulkQuestions, setBulkQuestions] = useState<any[]>([]);
+  const [bulkErrors, setBulkErrors] = useState<string[]>([]);
+  const [bulkUploadResults, setBulkUploadResults] = useState<any>(null);
 
   const fetchDetails = async () => {
     try {
@@ -86,19 +93,43 @@ export default function ExamDetails() {
     formData.append("file", file);
 
     setUploadLoading(true);
-    const toastId = toast.loading("Streaming bulk data...");
+    const toastId = toast.loading("Analyzing blueprint data...");
 
     try {
-      await api.post(`exams/${examId}/upload-excel`, formData, {
+      const { data } = await api.post(`bulk/validate`, formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
-      toast.success("Bulk integration complete!", { id: toastId });
-      fetchDetails();
+      
+      setBulkQuestions(data.questions);
+      setBulkErrors(data.errors);
+      setBulkUploadResults(null);
+      setShowBulkPreview(true);
+      
+      if (data.errorCount > 0) {
+        toast.error(`Detected ${data.errorCount} anomalies in manifold.`, { id: toastId });
+      } else {
+        toast.success("Blueprint validated. Ready for integration.", { id: toastId });
+      }
     } catch (error: any) {
-      toast.error("Bulk sync failed", { id: toastId });
+      toast.error("Anomalous file structure detected.", { id: toastId });
     } finally {
       setUploadLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const executeBulkUpload = async () => {
+    const toastId = toast.loading("Executing bulk integration...");
+    try {
+      const { data } = await api.post(`bulk/upload`, {
+        questions: bulkQuestions,
+        examId: examId
+      });
+      setBulkUploadResults(data.results);
+      toast.success("Bulk integration complete!", { id: toastId });
+      fetchDetails();
+    } catch (error) {
+      toast.error("Bulk sync failed", { id: toastId });
     }
   };
 
@@ -139,7 +170,7 @@ export default function ExamDetails() {
 
         <div className="flex flex-col lg:flex-row gap-10">
           <div className="flex-1 space-y-10">
-            <div className="glass-panel p-10 border-white/5 relative overflow-hidden">
+            <div className="glass-panel p-6 md:p-10 border-white/5 relative overflow-hidden">
                <div className="absolute top-0 right-0 p-10 opacity-5">
                   <Layout className="w-48 h-48" />
                </div>
@@ -265,7 +296,7 @@ export default function ExamDetails() {
                     exam.questions?.map((q: any, i: number) => {
                       const optionsArr = q.options ? (typeof q.options === 'string' ? JSON.parse(q.options) : q.options) : [];
                       return (
-                        <div key={q.id} className="glass-panel p-8 border-white/5 space-y-6 group">
+                        <div key={q.id} className="glass-panel p-6 md:p-8 border-white/5 space-y-6 group">
                            <div className="flex items-start justify-between">
                               <div className="flex items-center gap-6">
                                  <span className="text-3xl font-black text-white/5 group-hover:text-indigo-500/40 transition-colors">#{i+1}</span>
@@ -342,6 +373,121 @@ export default function ExamDetails() {
              </div>
           </aside>
         </div>
+
+        {/* Bulk Upload Preview Modal */}
+        <AnimatePresence>
+           {showBulkPreview && (
+             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowBulkPreview(false)}
+                  className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+                />
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                  className="relative w-full max-w-4xl max-h-[80vh] glass-card border-white/10 flex flex-col overflow-hidden"
+                >
+                   <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-black italic uppercase italic tracking-tight">Bulk Integration Preview</h2>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Reviewing {bulkQuestions.length} vectors for synchronization</p>
+                      </div>
+                      <button onClick={() => setShowBulkPreview(false)} className="p-2 hover:bg-white/5 rounded-lg text-gray-500 hover:text-white">✕</button>
+                   </div>
+
+                   <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                      {bulkUploadResults ? (
+                        <div className="space-y-6">
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="p-6 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                                 <p className="text-[10px] font-black uppercase text-emerald-400 mb-2">Synchronized</p>
+                                 <p className="text-4xl font-black">{bulkUploadResults.success}</p>
+                              </div>
+                              <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-2xl">
+                                 <p className="text-[10px] font-black uppercase text-red-400 mb-2">Failures</p>
+                                 <p className="text-4xl font-black">{bulkUploadResults.failed}</p>
+                              </div>
+                           </div>
+                           {bulkUploadResults.details.length > 0 && (
+                             <div className="space-y-3">
+                               <h3 className="text-xs font-black uppercase text-gray-500">Anomaly Log</h3>
+                               {bulkUploadResults.details.map((d: any, i: number) => (
+                                 <div key={i} className="p-3 bg-red-500/5 border border-red-500/10 rounded-xl flex items-start gap-3">
+                                    <AlertCircle className="w-4 h-4 text-red-500 mt-1 flex-shrink-0" />
+                                    <div>
+                                       <p className="text-[10px] font-bold text-red-400 uppercase line-clamp-1">{d.question}</p>
+                                       <p className="text-[10px] text-gray-500 italic mt-1">{d.error}</p>
+                                    </div>
+                                 </div>
+                               ))}
+                             </div>
+                           )}
+                        </div>
+                      ) : (
+                        <>
+                          {bulkErrors.length > 0 && (
+                            <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-2xl space-y-2">
+                               <h3 className="text-[10px] font-black uppercase text-orange-400">Pre-flight Validation Failures ({bulkErrors.length})</h3>
+                               <div className="max-h-40 overflow-y-auto space-y-1">
+                                  {bulkErrors.map((err, i) => (
+                                    <p key={i} className="text-[10px] text-orange-200/60 font-medium tracking-tight">• {err}</p>
+                                  ))}
+                               </div>
+                            </div>
+                          )}
+
+                          <div className="space-y-4">
+                             {bulkQuestions.map((q, i) => (
+                               <div key={i} className="p-4 bg-white/5 border border-white/5 rounded-xl flex items-start gap-4">
+                                  <span className="text-xs font-black text-indigo-500/40">#{i+1}</span>
+                                  <div className="flex-1">
+                                     <div className="flex items-center gap-3 mb-2">
+                                        <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded uppercase tracking-tighter">{q.type}</span>
+                                        <span className="text-[10px] font-black text-gray-500">{q.marks} Marks</span>
+                                     </div>
+                                     <p className="text-xs font-bold text-gray-300 italic">{q.question_text}</p>
+                                  </div>
+                               </div>
+                             ))}
+                          </div>
+                        </>
+                      )}
+                   </div>
+
+                   <div className="p-8 border-t border-white/5 bg-black/20 flex justify-end gap-4">
+                      {bulkUploadResults ? (
+                        <button 
+                          onClick={() => { setShowBulkPreview(false); setBulkUploadResults(null); }}
+                          className="btn-primary py-3 px-10 font-black uppercase text-xs"
+                        >
+                          Complete Manifest
+                        </button>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={() => setShowBulkPreview(false)}
+                            className="px-6 py-3 text-xs font-black text-gray-500 uppercase hover:text-white"
+                          >
+                            Discard
+                          </button>
+                          <button 
+                            onClick={executeBulkUpload}
+                            disabled={bulkQuestions.length === 0}
+                            className="btn-primary py-3 px-10 font-black uppercase text-xs flex items-center gap-2"
+                          >
+                             Integrate Fleet <Send className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                   </div>
+                </motion.div>
+             </div>
+           )}
+        </AnimatePresence>
       </div>
     </DashboardLayout>
   );

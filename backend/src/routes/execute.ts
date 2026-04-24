@@ -5,10 +5,53 @@ import { authenticate, AuthRequest } from "../middleware/auth";
 
 const router = Router();
 
-const PISTON_URL = "https://emkc.org/api/v2/piston/execute";
-const PISTON_HEADERS = {
-  "User-Agent": "ExamPro-Universal-Executor/1.0",
-  "Content-Type": "application/json"
+const JUDGE0_URL = "https://ce.judge0.com/submissions?base64_encoded=false&wait=true";
+
+const languageMapping: Record<string, number> = {
+  'javascript': 93, // Node.js 18.15.0
+  'python': 92,     // Python 3.11.2
+  'java': 91,       // OpenJDK 17
+  'cpp': 76,        // C++ (GCC 9.2.0)
+  'c': 75,          // C (GCC 9.2.0)
+  'go': 60,         // Go (1.13.5)
+  'php': 68,        // PHP (7.4.1)
+  'ruby': 72,       // Ruby (2.7.0)
+};
+
+const executeOnJudge0 = async (language: string, code: string, stdin: string = "") => {
+  const langKey = language.toLowerCase();
+  const languageId = languageMapping[langKey] || 93;
+  
+  let processedCode = code;
+  // Java requirement: public class name MUST usually be Main for simple execution
+  if (langKey === 'java') {
+    processedCode = code.replace(/public\s+class\s+\w+/, 'public class Main');
+    // If no public class found, just try to append
+    if (processedCode === code && !code.includes('public class')) {
+        // Very basic fallback
+    }
+  }
+
+  try {
+    const response = await axios.post(JUDGE0_URL, {
+      language_id: languageId,
+      source_code: processedCode,
+      stdin: stdin
+    }, { timeout: 15000 });
+
+    const data = response.data;
+    return {
+      stdout: data.stdout,
+      stderr: data.stderr,
+      compile_output: data.compile_output,
+      message: data.message,
+      status: data.status?.description,
+      statusId: data.status?.id
+    };
+  } catch (error: any) {
+    console.error("[Judge0-Connector] API Trace Error:", error.response?.data || error.message);
+    throw new Error(error.response?.data?.message || "Execution engine unreachable.");
+  }
 };
 
 // Health Discovery Manifold
@@ -18,28 +61,18 @@ router.get("/health", (req, res) => {
 
 // Direct Execution Manifest
 router.post("/", async (req: Request, res: Response) => {
-  const { language, code } = req.body;
+  const { language, code, stdin } = req.body;
 
   if (!language || !code) {
     return res.status(400).json({ error: "Language and Code manifest required for execution." });
   }
 
   try {
-    const response = await axios.post(PISTON_URL, {
-      language: language,
-      version: "*",
-      files: [{ content: code }],
-      stdin: ""
-    }, { headers: PISTON_HEADERS, timeout: 30000 });
-
-    if (response.data.run) {
-      res.json(response.data.run);
-    } else {
-      res.status(502).json({ error: "Upstream execution failure." });
-    }
+    const result = await executeOnJudge0(language, code, stdin || "");
+    res.json(result);
   } catch (error: any) {
     console.error("[Sector-X] Direct Execution Failure:", error.message);
-    res.status(error.response?.status || 500).json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -86,44 +119,34 @@ router.post("/test", authenticate, async (req: AuthRequest, res: Response) => {
 
     const results = [];
     for (const tc of testCases) {
-      let expectedOutput = tc.output;
+      let expectedOutput = String(tc.output || "").trim();
 
       if (tc.output === "AUTO_DERIVE_FROM_ADMIN_BLUEPRINT") {
         try {
-           const adminExec = await axios.post(PISTON_URL, {
-             language: language,
-             version: "*",
-             files: [{ content: (question as any).correct_answer }],
-             stdin: tc.input || ""
-           }, { headers: PISTON_HEADERS, timeout: 15000 });
-           expectedOutput = (adminExec.data.run?.stdout || "").trim();
+           const adminExec = await executeOnJudge0(language, (question as any).correct_answer, tc.input || "");
+           expectedOutput = (adminExec.stdout || "").trim();
         } catch (e) {
            expectedOutput = "ADMIN_REFERENCE_ERROR";
         }
       }
 
       try {
-         const studentExec = await axios.post(PISTON_URL, {
-           language: language,
-           version: "*",
-           files: [{ content: code }],
-           stdin: tc.input || ""
-         }, { headers: PISTON_HEADERS, timeout: 15000 });
+         const studentExec = await executeOnJudge0(language, code, tc.input || "");
 
-         const actualOutput = (studentExec.data.run?.stdout || "").trim();
-         const stderr = studentExec.data.run?.stderr || "";
+         const actualOutput = (studentExec.stdout || "").trim();
+         const stderr = studentExec.stderr || studentExec.compile_output || "";
          
          results.push({
            input: tc.input,
            expected: expectedOutput,
            actual: actualOutput || (stderr ? `[ERROR]: ${stderr}` : ""),
-           passed: actualOutput === expectedOutput.trim() && !stderr
+           passed: actualOutput === expectedOutput && !studentExec.stderr && !studentExec.compile_output
          });
-      } catch (e) {
+      } catch (e: any) {
          results.push({
            input: tc.input,
            expected: expectedOutput,
-           actual: "[CRITICAL_EXECUTION_FAILURE]",
+           actual: `[CRITICAL_EXECUTION_FAILURE]: ${e.message}`,
            passed: false
          });
       }
@@ -134,8 +157,7 @@ router.post("/test", authenticate, async (req: AuthRequest, res: Response) => {
     console.error("[Sector-X] Authoritative Validation Defeat:", error);
     res.status(500).json({ 
       error: "System manifold failure during validation.",
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: error.message
     });
   }
 });

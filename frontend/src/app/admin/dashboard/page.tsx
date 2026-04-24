@@ -17,15 +17,53 @@ import {
   ChevronRight,
   FileSpreadsheet,
   Plus,
-  Download
+  Download,
+  BarChart2,
+  PieChart as PieIcon,
+  Activity
 } from "lucide-react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Bar, Line, Pie } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<any>({
     exams: 0,
     students: 0,
     submissions: 0,
-    average: "0%"
+    active_exams: 0,
+    pending_evaluations: 0,
+    average: "0%",
+    participationData: [],
+    trends: [],
+    passFail: { passed: 0, failed: 0 },
+    recent_activity: {
+      submissions: [],
+      exams: [],
+      students: []
+    }
   });
   const [exams, setExams] = useState<any[]>([]);
   const [allExams, setAllExams] = useState<any[]>([]);
@@ -43,10 +81,10 @@ export default function AdminDashboard() {
           api.get("exams"),
           api.get("results/all")
         ]);
-        setStats(statsRes.data);
-        setAllExams(examsRes.data);
-        setExams(examsRes.data.slice(0, 3));
-        setSubmissions(subsRes.data);
+        setStats(statsRes.data || stats);
+        setAllExams(examsRes.data || []);
+        setExams((examsRes.data || []).slice(0, 3));
+        setSubmissions(subsRes.data || []);
       } catch (error) {
         // Silent recovery - data will show as 0 or empty
       } finally {
@@ -57,8 +95,8 @@ export default function AdminDashboard() {
   }, []);
 
   const filteredExams = selectedDate 
-    ? allExams.filter((e: any) => new Date(e.schedule_start).getDate() === selectedDate)
-    : allExams.slice(0, 4);
+    ? (allExams || []).filter((e: any) => new Date(e.schedule_start).getDate() === selectedDate)
+    : (allExams || []).slice(0, 4);
 
   const downloadTemplate = () => {
     const template = [
@@ -116,6 +154,39 @@ export default function AdminDashboard() {
     }
   };
 
+  const barData = {
+    labels: stats.participationData?.map((d: any) => d.title) || [],
+    datasets: [{
+      label: 'Participants',
+      data: stats.participationData?.map((d: any) => d.participation) || [],
+      backgroundColor: 'rgba(99, 102, 241, 0.5)',
+      borderColor: '#6366f1',
+      borderWidth: 1
+    }]
+  };
+
+  const lineData = {
+    labels: stats.trends?.map((d: any) => d.date) || [],
+    datasets: [{
+      label: 'Submissions',
+      data: stats.trends?.map((d: any) => d.count) || [],
+      borderColor: '#10b981',
+      tension: 0.3,
+      fill: true,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)'
+    }]
+  };
+
+  const pieData = {
+    labels: ['Pass', 'Fail'],
+    datasets: [{
+      data: [stats.passFail?.passed || 0, stats.passFail?.failed || 0],
+      backgroundColor: ['rgba(16, 185, 129, 0.6)', 'rgba(239, 68, 68, 0.6)'],
+      borderColor: ['#10b981', '#ef4444'],
+      borderWidth: 1
+    }]
+  };
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-8 pb-10">
@@ -135,42 +206,43 @@ export default function AdminDashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
           {loading ? (
-             [1,2,3,4].map(i => (
+             [1,2,3,4,5].map(i => (
                <div key={i} className="glass-panel p-8 h-44 animate-pulse border-white/5 bg-white/5" />
              ))
           ) : (
             [
-              { label: "Active Exams", value: stats.exams, icon: <BookOpen className="text-indigo-400" />, trend: "+2 this week", color: "from-indigo-500/10", path: "/admin/exams" },
-              { label: "Global Students", value: stats.students, icon: <Users className="text-[#0ea5e9]" />, trend: "+12% vs last month", color: "from-[#0ea5e9]/10", path: "/admin/students" },
-              { label: "Submissions", value: stats.submissions, icon: <CheckCircle className="text-emerald-400" />, trend: "+45 today", color: "from-emerald-500/10", path: "/admin/analytics" },
-              { label: "Avg. Performance", value: stats.average, icon: <TrendingUp className="text-amber-400" />, trend: "Steady", color: "from-amber-500/10", path: "/admin/analytics" }
+              { label: "Total Exams", value: stats.exams, icon: <BookOpen className="text-indigo-400" />, trend: "Sector Active", color: "from-indigo-500/10", path: "/admin/exams" },
+              { label: "Total Students", value: stats.students, icon: <Users className="text-[#0ea5e9]" />, trend: "Global Index", color: "from-[#0ea5e9]/10", path: "/admin/students" },
+              { label: "Submissions", value: stats.submissions, icon: <CheckCircle className="text-emerald-400" />, trend: "Total Metrics", color: "from-emerald-500/10", path: "/admin/analytics" },
+              { label: "Active Exams", value: stats.active_exams, icon: <Activity className="text-amber-400" />, trend: "Live Sessions", color: "from-amber-500/10", path: "/admin/exams" },
+              { label: "Pending Eval", value: stats.pending_evaluations, icon: <Clock className="text-rose-400" />, trend: "Action Required", color: "from-rose-500/10", path: "/admin/analytics" }
             ].map((s, i) => (
               <motion.div 
                 key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: i * 0.05 }}
                 className="relative group h-full"
               >
                 <Link 
                   href={s.path}
-                  className={`block glass-panel p-8 relative overflow-hidden group h-full bg-gradient-to-br ${s.color} to-transparent border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer`}
+                  className={`block glass-panel p-6 relative overflow-hidden group h-full bg-gradient-to-br ${s.color} to-transparent border-white/5 hover:border-indigo-500/30 transition-all cursor-pointer shadow-lg`}
                 >
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="w-14 h-14 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:border-white/10 transition-all">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 group-hover:border-white/10 transition-all">
                       {s.icon}
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">{s.trend}</div>
-                      <div className="h-1 w-12 bg-emerald-500/20 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 w-2/3" />
-                      </div>
+                    <div>
+                      <h3 className="text-gray-500 text-[10px] font-black uppercase tracking-widest">{s.label}</h3>
+                      <p className="text-2xl font-black tracking-tighter leading-none">{s.value}</p>
                     </div>
                   </div>
-                  <h3 className="text-gray-500 text-xs font-black uppercase tracking-[0.2em]">{s.label}</h3>
-                  <p className="text-4xl font-black mt-2 tracking-tighter">{s.value}</p>
+                  <div className="flex items-center justify-between mt-4 pb-2 border-t border-white/5 pt-4">
+                     <span className="text-[8px] font-black text-gray-500 uppercase tracking-widest">{s.trend}</span>
+                     <ChevronRight className="w-3 h-3 text-gray-600 group-hover:translate-x-1 transition-transform" />
+                  </div>
                 </Link>
               </motion.div>
             ))
@@ -178,8 +250,138 @@ export default function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar & Upcoming Exams */}
           <div className="lg:col-span-2 space-y-6">
+            <div className="glass-card p-8 border-white/5 space-y-10">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-6">
+                     <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+                        <BarChart2 className="w-4 h-4" /> Participation Metrics
+                     </h3>
+                     <div className="h-[240px]">
+                        <Bar 
+                          data={barData} 
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                              y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666', font: { size: 10 } } },
+                              x: { grid: { display: false }, ticks: { color: '#666', font: { size: 10 } } }
+                            }
+                          }} 
+                        />
+                     </div>
+                  </div>
+                  <div className="space-y-6">
+                     <h3 className="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" /> Submission Trends
+                     </h3>
+                     <div className="h-[240px]">
+                        <Line 
+                           data={lineData} 
+                           options={{
+                             responsive: true,
+                             maintainAspectRatio: false,
+                             plugins: { legend: { display: false } },
+                             scales: {
+                               y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#666', font: { size: 10 } } },
+                               x: { grid: { display: false }, ticks: { color: '#666', font: { size: 10 } } }
+                             }
+                           }}
+                        />
+                     </div>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-10 border-t border-white/5">
+                  <div className="space-y-6">
+                     <h3 className="text-xs font-black uppercase tracking-widest text-rose-400 flex items-center gap-2">
+                        <PieIcon className="w-4 h-4" /> Qualifiction Pipeline
+                     </h3>
+                     <div className="h-[240px] flex items-center justify-center">
+                        <Pie 
+                          data={pieData}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { position: 'right', labels: { color: '#888', font: { size: 10, weight: 'bold' } } } }
+                          }}
+                        />
+                     </div>
+                  </div>
+                  <div className="space-y-6">
+                     <h3 className="text-xs font-black uppercase tracking-widest text-amber-400 flex items-center gap-2">
+                        <Users className="w-4 h-4" /> Top Performers (Global)
+                     </h3>
+                     <div className="space-y-4">
+                        {(!stats.topPerformers || stats.topPerformers.length === 0) ? (
+                           <p className="text-[10px] text-gray-600 uppercase font-bold italic">No data available</p>
+                        ) : (
+                          stats.topPerformers.slice(0, 3).map((p: any, i: number) => (
+                             <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 group hover:border-amber-500/20 transition-all">
+                                <div className="flex items-center gap-3">
+                                   <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center text-[10px] font-black text-amber-500">
+                                      {p.name?.split(" ").map((n:any)=>n[0]).join("")}
+                                   </div>
+                                   <div>
+                                      <span className="text-xs font-bold uppercase tracking-tight block">{p.name}</span>
+                                      <span className="text-[8px] text-gray-500 font-bold uppercase">{p.exams_count} Missions</span>
+                                   </div>
+                                </div>
+                                <span className="text-sm font-black text-emerald-400">{Math.round(p.avg_score)}%</span>
+                             </div>
+                          ))
+                        )}
+                     </div>
+                  </div>
+               </div>
+
+               {/* Exam Detailed Analytics */}
+               <div className="pt-10 border-t border-white/5 space-y-6">
+                  <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+                    <Activity className="w-4 h-4" /> Exam Performance Insights
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-white/5">
+                          <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Exam Manifest</th>
+                          <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Participation</th>
+                          <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Avg Efficiency</th>
+                          <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Pass Rate</th>
+                          <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Hi / Lo</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {stats.participationData?.length === 0 ? (
+                          <tr><td colSpan={5} className="py-8 text-center text-[10px] text-gray-600 uppercase font-black">No assessment metrics found</td></tr>
+                        ) : (
+                          stats.participationData.map((d: any, i: number) => (
+                            <tr key={i} className="group hover:bg-white/5 transition-colors">
+                              <td className="py-4 text-xs font-bold uppercase tracking-tight">{d.title}</td>
+                              <td className="py-4 text-sm font-black text-indigo-400">{d.participation}</td>
+                              <td className="py-4 text-sm font-black">{Math.round(d.avg_score || 0)}%</td>
+                              <td className="py-4">
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                  {Math.round(d.pass_percentage || 0)}%
+                                </span>
+                              </td>
+                              <td className="py-4 text-right">
+                                <div className="inline-flex items-center gap-2">
+                                  <span className="text-xs font-black text-indigo-400">{d.highest_score || 0}%</span>
+                                  <span className="text-gray-700">/</span>
+                                  <span className="text-xs font-black text-rose-500">{d.lowest_score || 0}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+               </div>
+            </div>
+
             <div className="glass-card p-8 border-white/5">
               <div className="flex items-center justify-between mb-8">
                 <h2 className="text-xl font-bold flex items-center gap-2">
@@ -299,32 +501,70 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="glass-card p-8 border-white/5">
-              <h2 className="text-xl font-bold mb-4">Recent Submissions</h2>
-              <div className="space-y-4">
-                {submissions.length === 0 ? (
-                  <div className="py-10 text-center">
-                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest italic">No activity recorded</p>
+            <div className="glass-card p-8 border-white/5 space-y-8">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                   <Activity className="w-5 h-5 text-indigo-400" /> Recent Activity
+                </h2>
+                <div className="px-2 py-1 bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase tracking-widest rounded border border-emerald-500/20 animate-pulse">Live Feed</div>
+              </div>
+              
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-[10px] font-black uppercase text-gray-500 mb-4 tracking-widest">New Submissions</h3>
+                  <div className="space-y-3">
+                    {(!stats.recent_activity?.submissions || stats.recent_activity.submissions.length === 0) ? (
+                       <p className="text-[8px] text-gray-600 uppercase italic">No recent flow detected</p>
+                    ) : (
+                      stats.recent_activity.submissions.slice(0, 3).map((s: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
+                           <div>
+                              <p className="text-xs font-bold uppercase">{s.student_name}</p>
+                              <p className="text-[8px] text-indigo-400 font-bold uppercase">{s.exam_title}</p>
+                           </div>
+                           <span className="text-xs font-black text-emerald-400">{s.score}%</span>
+                        </div>
+                      ))
+                    )}
                   </div>
-                ) : (
-                  submissions.map((s: any, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white/5 p-1 border border-white/10">
-                        <img src={`https://ui-avatars.com/api/?name=${s.name}`} className="rounded-full" alt="avatar" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold truncate">{s.name}</p>
-                        <p className="text-[10px] text-gray-500 truncate uppercase tracking-tight">{s.exam_title}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-indigo-400">{s.score}%</p>
-                        <p className="text-[8px] text-gray-600 uppercase">
-                          {new Date(s.end_time).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                  )
-                ))}
+                </div>
+
+                <div>
+                  <h3 className="text-[10px] font-black uppercase text-gray-500 mb-4 tracking-widest">Latest Registrations</h3>
+                  <div className="space-y-3">
+                    {(!stats.recent_activity?.students || stats.recent_activity.students.length === 0) ? (
+                       <p className="text-[8px] text-gray-600 uppercase italic">No new entries</p>
+                    ) : (
+                      stats.recent_activity.students.slice(0, 3).map((u: any, i: number) => (
+                        <div key={i} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5 text-[10px]">
+                           <div className="w-6 h-6 rounded-lg bg-indigo-500/10 flex items-center justify-center font-black text-indigo-400 uppercase">
+                              {u.name[0]}
+                           </div>
+                           <div className="flex-1 min-w-0">
+                              <p className="font-bold uppercase truncate">{u.name}</p>
+                              <p className="text-gray-500 truncate text-[8px]">{u.email}</p>
+                           </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-[10px] font-black uppercase text-gray-500 mb-4 tracking-widest">Recent Exams Published</h3>
+                  <div className="space-y-3">
+                    {(!stats.recent_activity?.exams || stats.recent_activity.exams.length === 0) ? (
+                       <p className="text-[8px] text-gray-600 uppercase italic">No recent deployments</p>
+                    ) : (
+                      stats.recent_activity.exams.slice(0, 2).map((e: any, i: number) => (
+                        <div key={i} className="p-3 bg-white/5 rounded-xl border border-white/5">
+                           <p className="text-xs font-bold uppercase line-clamp-1">{e.title}</p>
+                           <p className="text-[8px] text-gray-500 font-bold uppercase">{new Date(e.created_at).toLocaleDateString()}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

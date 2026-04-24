@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { db } from "../config/db";
 import { authenticate, AuthRequest } from "../middleware/auth";
 import crypto from "crypto";
+import { createNotification } from "./notification";
 
 const router = Router();
 
@@ -113,14 +114,18 @@ router.post("/:attemptId/save", authenticate, async (req: AuthRequest, res: Resp
 });
 
 // Internal evaluation logic used by both manual and auto-submit
-async function evaluateAttempt(attemptId: string) {
+export async function evaluateAttempt(attemptId: string) {
+  console.log(`[evaluation-engine] Evaluating attempt: ${attemptId}`);
   // 1. High-Resolution Attempt Discovery
   const attemptRes = await db.execute({
     sql: "SELECT * FROM attempts WHERE id = ? AND status = 'in-progress'",
     args: [attemptId]
   } as any);
 
-  if (!attemptRes.rows || attemptRes.rows.length === 0) return null;
+  if (!attemptRes.rows || attemptRes.rows.length === 0) {
+    console.warn(`[evaluation-engine] Attempt ${attemptId} not found or not in-progress`);
+    return null;
+  }
   const attempt = attemptRes.rows[0] as any;
 
   // 2. Aggregate Evaluation Vectors
@@ -163,6 +168,20 @@ async function evaluateAttempt(attemptId: string) {
     args: [finalScore, attemptId]
   } as any);
 
+  // 5. Notify Student (Async)
+  const examRes = await db.execute({
+    sql: "SELECT title FROM exams WHERE id = ?",
+    args: [attempt.exam_id]
+  } as any);
+  const examTitle = examRes.rows[0]?.title || "Assessment";
+  
+  createNotification(
+    attempt.user_id, 
+    "Result Available", 
+    `Mission Accomplished: Your performance for '${examTitle}' has been manifest. Score: ${finalScore}%`, 
+    "result_ready"
+  );
+
   return finalScore;
 }
 
@@ -170,6 +189,7 @@ async function evaluateAttempt(attemptId: string) {
 router.post("/:attemptId/submit", authenticate, async (req: AuthRequest, res: Response) => {
   try {
     const attemptId = req.params.attemptId as string;
+    console.log(`[submit-route] Received submit request for attempt: ${attemptId}`);
     const score = await evaluateAttempt(attemptId);
     
     if (score === null) {
@@ -200,18 +220,6 @@ export const autoSubmitExpiredAttempts = async () => {
             const attemptId = String(row.id);
             console.log(`[watchdog] Auto-submitting expired manifestation: ${attemptId}`);
             await evaluateAttempt(attemptId);
-            
-            // Generate notification for result availability
-            const attempt = await db.execute({
-                sql: "SELECT user_id, exam_id FROM attempts WHERE id = ?",
-                args: [attemptId]
-            } as any);
-            const userId = (attempt.rows[0] as any).user_id;
-            
-            await db.execute({
-                sql: "INSERT INTO notifications (id, user_id, title, message, type) VALUES (?, ?, ?, ?, ?)",
-                args: [crypto.randomUUID(), userId, "Result Available", "Your assessment has been automatically submitted and evaluated.", "result_available"]
-            } as any);
         }
     } catch (error) {
         console.error("[watchdog-failure] Global temporal scan defeated:", error);

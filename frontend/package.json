@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "axios": "^1.15.0",
     "canvas-confetti": "^1.9.4",
     "chart.js": "^4.5.1",

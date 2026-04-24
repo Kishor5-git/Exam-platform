@@ -9,23 +9,44 @@ import {
   ArrowRight, 
   Timer, 
   Star,
-  CheckCircle2
+  CheckCircle2,
+  TrendingUp,
+  Monitor,
+  AlertCircle,
+  BookOpen
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import api from "@/services/api";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 export default function StudentDashboard() {
   const [exams, setExams] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(new Date());
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -47,16 +68,47 @@ export default function StudentDashboard() {
     fetchData();
   }, []);
 
-  const getCountdown = (targetDate: string) => {
-    const target = new Date(targetDate).getTime();
-    const diff = target - now.getTime();
-    if (diff <= 0) return "Starting Now";
+  // Isolated Countdown Component for Performance
+  const Countdown = ({ targetDate }: { targetDate: string }) => {
+    const [timeLeft, setTimeLeft] = useState("");
     
-    const h = Math.floor(diff / (1000 * 60 * 60));
-    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const s = Math.floor((diff % (1000 * 60)) / 1000);
-    return `${h}h ${m}m ${s}s`;
+    useEffect(() => {
+      const update = () => {
+        const target = new Date(targetDate).getTime();
+        const diff = target - Date.now();
+        if (diff <= 0) {
+          setTimeLeft("Starting Now");
+          return;
+        }
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        setTimeLeft(`${h}h ${m}m ${s}s`);
+      };
+      update();
+      const timer = setInterval(update, 1000);
+      return () => clearInterval(timer);
+    }, [targetDate]);
+
+    return <>{timeLeft}</>;
   };
+
+  const chartData = useMemo(() => ({
+    labels: stats?.trends?.map((t: any, i: number) => `Exam ${i + 1}`) || [],
+    datasets: [
+      {
+        label: 'Score Progression',
+        data: stats?.trends?.map((t: any) => t.score) || [],
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.2)',
+        tension: 0.4,
+        fill: true,
+      },
+    ],
+  }), [stats?.trends]);
+
+  const upcomingExams = useMemo(() => exams.filter(e => new Date(e.schedule_start) > new Date()).slice(0, 3), [exams]);
+  const recentExams = useMemo(() => exams.filter(e => new Date(e.schedule_start) < new Date()).slice(0, 3), [exams]);
 
   return (
     <DashboardLayout role="student">
@@ -131,30 +183,184 @@ export default function StudentDashboard() {
             <h2 className="text-2xl font-black flex items-center gap-3 uppercase tracking-tight">
               <Star className="w-6 h-6 text-indigo-400" /> Mastery Statistics
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
               {[
-                { label: "Passing Rate", val: stats?.passing_rate || "0%", icon: CheckCircle2, sub: "Authority accuracy manifest" },
-                { label: "Global Standing", val: stats?.global_rank || "—", icon: Trophy, sub: "Global candidate ranking" },
-                { label: "Manifested Credits", val: stats?.total_credits || 0, icon: Clock, sub: "Total mastery accumulation" }
+                { label: "Missions", val: stats?.exams_completed || 0, icon: CheckCircle2, sub: "Total attempts" },
+                { label: "Passing Rate", val: stats?.passing_rate || "0%", icon: TrendingUp, sub: "Authority accuracy" },
+                { label: "Avg Score", val: stats?.average_score || "0%", icon: Monitor, sub: "Historical average" },
+                { label: "Peak Score", val: stats?.highest_score || "0%", icon: Trophy, sub: "Personal threshold" },
+                { label: "Rank", val: stats?.global_rank || "-", icon: Star, sub: "Global standing" }
               ].map((stat, i) => (
                 <motion.div 
                   key={i}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="glass-panel p-6 border-white/5"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="glass-panel p-6 border-white/5 bg-white/5 hover:border-indigo-500/30 transition-all group"
                 >
-                  <stat.icon className="w-5 h-5 text-indigo-500 mb-4" />
-                  <div className="text-3xl font-black mb-1">{stat.val}</div>
+                  <stat.icon className="w-5 h-5 text-indigo-500 mb-4 group-hover:scale-110 transition-transform" />
+                  <div className="text-2xl font-black mb-1 tracking-tighter group-hover:text-indigo-400 transition-colors">{stat.val}</div>
                   <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider">{stat.label}</div>
                   <div className="text-[9px] text-gray-600 font-bold mt-2 italic">{stat.sub}</div>
                 </motion.div>
               ))}
             </div>
+
+            {/* Recent Exam Results Table */}
+            <div className="glass-panel p-8 border-white/5 space-y-6">
+               <div className="flex items-center justify-between">
+                  <h3 className="font-black uppercase tracking-widest text-xs flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-emerald-400" /> Recent Exam Results
+                  </h3>
+                  <Link href="/student/results" className="text-[10px] font-black text-indigo-400 uppercase hover:underline">View All</Link>
+               </div>
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left">
+                   <thead>
+                     <tr className="border-b border-white/5">
+                       <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Exam Name</th>
+                       <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Score</th>
+                       <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Grade</th>
+                       <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
+                       <th className="pb-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Status</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-white/5">
+                     {stats?.recent_results?.length === 0 ? (
+                       <tr>
+                         <td colSpan={5} className="py-10 text-center">
+                            <p className="text-[10px] font-black text-gray-600 uppercase">No recent missions detected</p>
+                         </td>
+                       </tr>
+                     ) : (
+                       stats?.recent_results?.map((res: any, i: number) => (
+                         <tr key={i} className="group hover:bg-white/5 transition-colors">
+                           <td className="py-4 text-xs font-bold uppercase tracking-tight">{res.exam_name}</td>
+                           <td className="py-4 text-sm font-black text-indigo-400">{res.score}%</td>
+                           <td className="py-4 font-black">
+                              <span className={`text-xs px-2 py-1 rounded bg-white/5 border border-white/10 ${res.grade === 'F' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {res.grade}
+                              </span>
+                           </td>
+                           <td className="py-4 text-[10px] text-gray-500 font-bold">{new Date(res.date).toLocaleDateString()}</td>
+                           <td className="py-4 text-right">
+                              <span className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                {res.status}
+                              </span>
+                           </td>
+                         </tr>
+                       ))
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+            </div>
+
+            {/* Performance Trend Chart */}
+            <div className="glass-panel p-8 border-white/5 space-y-6">
+               <div className="flex items-center justify-between">
+                  <h3 className="font-black uppercase tracking-widest text-xs flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-indigo-400" /> Performance Trend
+                  </h3>
+                  <span className="text-[10px] font-black text-gray-500 uppercase">Score progression sequence</span>
+               </div>
+               <div className="h-[240px]">
+                  <Line 
+                    data={chartData} 
+                    options={{
+                       responsive: true,
+                       maintainAspectRatio: false,
+                       scales: {
+                         y: { 
+                           beginAtZero: true, 
+                           max: 100,
+                           grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                           ticks: { color: '#666', font: { weight: 'bold', size: 10 } }
+                         },
+                         x: { 
+                           grid: { display: false },
+                           ticks: { color: '#666', font: { weight: 'bold', size: 10 } }
+                         }
+                       },
+                       plugins: { 
+                         legend: { display: false },
+                         tooltip: {
+                           backgroundColor: '#111',
+                           titleFont: { size: 10 },
+                           bodyFont: { size: 12, weight: 'bold' },
+                           padding: 12,
+                           borderColor: 'rgba(99, 102, 241, 0.2)',
+                           borderWidth: 1
+                         }
+                       }
+                    }}
+                  />
+               </div>
+            </div>
+
+            {/* Upcoming & Recent History */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="space-y-6">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400 flex items-center gap-2">
+                     <Calendar className="w-4 h-4" /> Upcoming Frontiers
+                  </h3>
+                  <div className="space-y-4">
+                     {upcomingExams.map((e: any, i: number) => (
+                       <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                          <div>
+                             <p className="text-sm font-black uppercase">{e.title}</p>
+                             <p className="text-[10px] text-gray-500 font-bold">{new Date(e.schedule_start).toLocaleDateString()}</p>
+                          </div>
+                          <div className="text-right">
+                             <p className="text-[10px] font-black text-indigo-400 uppercase">Starts in</p>
+                             <p className="text-xs font-black tracking-tighter"><Countdown targetDate={e.schedule_start} /></p>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+               </div>
+               <div className="space-y-6">
+                  <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                     <Clock className="w-4 h-4" /> Recent Missions
+                  </h3>
+                  <div className="space-y-4">
+                     {recentExams.map((e: any, i: number) => (
+                       <div key={i} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 opacity-60">
+                          <div>
+                             <p className="text-sm font-black uppercase">{e.title}</p>
+                             <p className="text-[10px] text-gray-500 font-bold">{new Date(e.schedule_start).toLocaleDateString()}</p>
+                          </div>
+                          <Link href={`/student/exams/${e.id}`} className="p-2 bg-indigo-500/10 rounded-lg text-indigo-400 hover:bg-indigo-500/20 transition-all">
+                             <ArrowRight className="w-4 h-4" />
+                          </Link>
+                       </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
           </div>
 
           {/* Quick Mastery & Leaderboard */}
           <div className="space-y-10">
+            <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
+               <AlertCircle className="w-6 h-6 text-indigo-400" /> Notifications
+            </h2>
+            <div className="glass-panel p-6 space-y-4">
+               {[
+                 { msg: "New exam 'Advanced Java' published", time: "2h ago", icon: BookOpen },
+                 { msg: "Results for 'System Design' now available", time: "5h ago", icon: Star },
+                 { msg: "Welcome to the new Analytics portal", time: "1d ago", icon: TrendingUp }
+               ].map((n, i) => (
+                 <div key={i} className="flex gap-4 p-3 hover:bg-white/5 rounded-xl transition-all border border-transparent hover:border-white/5">
+                    <div className="p-2 bg-indigo-500/10 rounded-lg h-fit"><n.icon className="w-4 h-4 text-indigo-400" /></div>
+                    <div>
+                       <p className="text-xs font-bold text-gray-300 leading-tight">{n.msg}</p>
+                       <p className="text-[8px] font-black text-gray-500 uppercase mt-1">{n.time}</p>
+                    </div>
+                 </div>
+               ))}
+            </div>
+
             <h2 className="text-2xl font-black uppercase tracking-tight">Mastery Statistics</h2>
             <div className="glass-panel p-8 space-y-6">
               {[

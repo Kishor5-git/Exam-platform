@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { db } from "../config/db";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 import crypto from "crypto";
+import { notifyAllStudents } from "./notification";
 import multer from "multer";
 import * as XLSX from "xlsx";
 const pdf = require("pdf-parse");
@@ -295,6 +296,17 @@ router.patch("/:id/publish", authenticate, authorize(["admin"]), async (req: Req
     if (result.rowsAffected === 0) {
       return res.status(404).json({ error: "Assessment blueprint not found in the manifest." });
     }
+
+    // Fetch exam title for notification
+    const examRes = await db.execute({ sql: "SELECT title FROM exams WHERE id = ?", args: [id] } as any);
+    const title = examRes.rows[0]?.title || "New Assessment";
+
+    // Dispatch mass notification
+    await notifyAllStudents(
+      "New Assessment Sector Opened", 
+      `Mission Alert: '${title}' has been commissioned for your frontier. Access now to begin validation.`,
+      "exam_published"
+    );
 
     res.json({ message: "Assessment commissioning complete. Assessment is now live on the student frontiers." });
   } catch (error: any) {

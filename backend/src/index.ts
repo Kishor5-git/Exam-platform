@@ -10,6 +10,8 @@ import resultRoutes from "./routes/result";
 import statsRoutes from "./routes/stats";
 import userRoutes from "./routes/user";
 import executeRoutes from "./routes/execute";
+import bulkRoutes from "./routes/bulk";
+import notificationRoutes from "./routes/notification";
 
 dotenv.config();
 
@@ -49,6 +51,8 @@ app.use("/api/results", resultRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/execute", executeRoutes);
+app.use("/api/bulk", bulkRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Root Welcome Route
 app.get("/", (req, res) => {

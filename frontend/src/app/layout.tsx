@@ -7,8 +7,8 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 
 export const metadata: Metadata = {
-  title: "ExamPro | Professional Online Examination Platform",
-  description: "Secure, scalable, and premium online exam experience for students and admins.",
+  title: "ExamPro V2 | Professional Online Examination Platform",
+  description: "Secure, scalable, and premium online exam experience for students and admins. (Updated: 2026-04-24)",
 };
 
 export default function RootLayout({

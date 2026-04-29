@@ -1,12 +1,12 @@
-const { createClient } = require("@libsql/client");
+const { createClient } = require("@libsql/client/http");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
 
-const url = process.env.TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN;
+const url = process.env.DATABASE_URL;
+const authToken = process.env.DATABASE_AUTH_TOKEN;
 
 const db = createClient({
   url: url,
